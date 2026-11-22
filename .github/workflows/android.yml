@@ -30,35 +30,52 @@ jobs:
         with:
           gradle-version: '8.9'
 
+      - name: Extract Android Project
+        shell: bash
+        run: |
+          ZIP=$(find . -maxdepth 2 -type f -iname "*.zip" | head -n 1)
+
+          if [ -z "$ZIP" ]; then
+            echo "HATA: ZIP dosyasi bulunamadi!"
+            exit 1
+          fi
+
+          echo "ZIP: $ZIP"
+
+          mkdir -p extracted
+          unzip -o "$ZIP" -d extracted
+
+          echo "ZIP icerigi:"
+          find extracted -maxdepth 4 -type f | head -100
+
       - name: Find Gradle Project
         id: project
         shell: bash
         run: |
-          FILE=$(find . -type f \( -name settings.gradle -o -name settings.gradle.kts \) | head -n 1)
+          FILE=$(find extracted -type f \( \
+            -name settings.gradle \
+            -o -name settings.gradle.kts \
+          \) | head -n 1)
 
           if [ -z "$FILE" ]; then
-            echo "HATA: settings.gradle bulunamadi!"
-            echo "Depo klasorleri:"
-            ls -la
+            echo "HATA: ZIP icerisinde settings.gradle bulunamadi!"
             exit 1
           fi
 
-          PROJECT_DIR=$(dirname "$FILE")
-          echo "dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
+          DIR=$(dirname "$FILE")
+          echo "dir=$DIR" >> "$GITHUB_OUTPUT"
 
-          echo "Gradle proje klasoru: $PROJECT_DIR"
-          ls -la "$PROJECT_DIR"
+          echo "Proje bulundu: $DIR"
+          ls -la "$DIR"
 
       - name: Build Release APK
-        run: |
-          gradle --no-daemon assembleRelease
         working-directory: ${{ steps.project.outputs.dir }}
+        run: gradle --no-daemon assembleRelease
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Adimsayar-Release-APK
-          path: |
-            **/build/outputs/apk/release/*.apk
+          path: extracted/**/build/outputs/apk/release/*.apk
           if-no-files-found: error
           retention-days: 14
