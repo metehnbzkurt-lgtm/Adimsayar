@@ -1,35 +1,64 @@
-name: Android APK
+
+name: Android Release Build
+
 on:
   workflow_dispatch:
   push:
+    branches:
+      - main
+      - master
+
 permissions:
   contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-      - name: Proje klasörünü bul
-        id: proj
-        run: |
-          f=$(find . -name settings.gradle.kts | head -n 1)
-          echo "dir=$(dirname "$f")" >> "$GITHUB_OUTPUT"
-
-      - uses: actions/setup-java@v4
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - uses: gradle/actions/setup-gradle@v4
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
 
-      - name: APK derle
-        run: gradle --no-daemon assembleRelease
-        working-directory: ${{ steps.proj.outputs.dir }}
+      - name: Find Gradle Project
+        id: project
+        shell: bash
+        run: |
+          FILE=$(find . -type f \( -name settings.gradle -o -name settings.gradle.kts \) | head -n 1)
 
-      - uses: actions/upload-artifact@v4
+          if [ -z "$FILE" ]; then
+            echo "HATA: settings.gradle bulunamadi!"
+            echo "Depo klasorleri:"
+            ls -la
+            exit 1
+          fi
+
+          PROJECT_DIR=$(dirname "$FILE")
+          echo "dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
+
+          echo "Gradle proje klasoru: $PROJECT_DIR"
+          ls -la "$PROJECT_DIR"
+
+      - name: Build Release APK
+        run: |
+          gradle --no-daemon assembleRelease
+        working-directory: ${{ steps.project.outputs.dir }}
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
         with:
-          name: AdimPlus-release
-          path: ${{ steps.proj.outputs.dir }}/app/build/outputs/apk/release/*.apk
+          name: Adimsayar-Release-APK
+          path: |
+            **/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+          retention-days: 14
